@@ -12,8 +12,9 @@ jobs:
     runs-on: windows-latest
     
     steps:
-    - uses: actions/checkout@v4
-    
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
@@ -21,13 +22,30 @@ jobs:
         
     - name: Install dependencies
       run: |
+        echo "开始安装依赖..."
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install pyinstaller
+        echo "依赖安装完成"
+        
+    - name: List files
+      run: |
+        echo "当前目录文件列表："
+        dir
+        echo "Python文件列表："
+        dir *.py
         
     - name: Build executable
       run: |
-        pyinstaller --clean ^
+        echo "开始构建可执行文件..."
+        echo "当前工作目录："
+        pwd
+        echo "Python版本："
+        python --version
+        echo "PyInstaller版本："
+        pyinstaller --version
+        echo "开始执行PyInstaller..."
+        pyinstaller --clean --noconfirm ^
           --name "机票价格监控" ^
           --add-data "config.py;." ^
           --add-data "scheduler_config.py;." ^
@@ -35,17 +53,30 @@ jobs:
           --hidden-import selenium ^
           --hidden-import pandas ^
           --hidden-import webdriver_manager ^
+          --log-level DEBUG ^
           scheduler.py
-          
+        echo "可执行文件构建完成"
+        
     - name: Create release package
       run: |
+        echo "开始创建发布包..."
         mkdir release
+        echo "复制可执行文件..."
         copy dist\机票价格监控.exe release\
+        echo "复制启动脚本..."
         copy start_monitor.bat release\
+        echo "复制说明文件..."
         copy README.md release\
+        echo "发布包创建完成"
+        
+    - name: List release contents
+      run: |
+        echo "发布包内容："
+        dir release
         
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
         name: windows-executable
-        path: release/ 
+        path: release/
+        if-no-files-found: error 
