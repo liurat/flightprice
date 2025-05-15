@@ -61,7 +61,8 @@ jobs:
         $pyinstallerArgs = @(
             "--clean",
             "--noconfirm",
-            "--name", "机票价格监控",
+            "--onefile",
+            "--name", "flight_monitor",
             "--add-data", "config.py;.",
             "--add-data", "scheduler_config.py;.",
             "--hidden-import", "schedule",
@@ -87,7 +88,8 @@ jobs:
         }
         
         # 验证构建结果
-        if (-not (Test-Path "dist\机票价格监控.exe")) {
+        $exePath = "dist\flight_monitor.exe"
+        if (-not (Test-Path $exePath)) {
             Write-Error "可执行文件生成失败"
             Write-Host "dist目录内容："
             Get-ChildItem -Path "dist" -Recurse
@@ -107,7 +109,7 @@ jobs:
         
         # 定义需要复制的文件
         $filesToCopy = @{
-            "dist\机票价格监控.exe" = "机票价格监控.exe"
+            "dist\flight_monitor.exe" = "机票价格监控.exe"
             "start_monitor.bat" = "start_monitor.bat"
             "README.md" = "README.md"
         }
