@@ -19,40 +19,42 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: '3.9'
+        cache: 'pip'
         
     - name: Install dependencies
       shell: pwsh
       run: |
-        echo "开始安装依赖..."
+        Write-Host "开始安装依赖..."
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install pyinstaller
-        echo "依赖安装完成"
+        Write-Host "依赖安装完成"
         
-    - name: List files
+    - name: Verify environment
       shell: pwsh
       run: |
-        echo "当前目录文件列表："
+        Write-Host "环境检查："
+        Write-Host "Python版本："
+        python --version
+        Write-Host "PyInstaller版本："
+        pyinstaller --version
+        Write-Host "当前工作目录："
+        pwd
+        Write-Host "项目文件列表："
         Get-ChildItem -Recurse
-        echo "Python文件列表："
-        Get-ChildItem -Filter "*.py" -Recurse
         
     - name: Build executable
       shell: pwsh
       run: |
-        echo "开始构建可执行文件..."
-        echo "当前工作目录："
-        pwd
-        echo "Python版本："
-        python --version
-        echo "PyInstaller版本："
-        pyinstaller --version
-        echo "开始执行PyInstaller..."
+        Write-Host "开始构建可执行文件..."
         
-        # 检查源文件是否存在
-        if (-not (Test-Path "scheduler.py")) {
-            Write-Error "scheduler.py 文件不存在"
-            exit 1
+        # 检查必要文件
+        $requiredFiles = @("scheduler.py", "config.py", "scheduler_config.py")
+        foreach ($file in $requiredFiles) {
+            if (-not (Test-Path $file)) {
+                Write-Error "错误：$file 文件不存在"
+                exit 1
+            }
         }
         
         # 执行PyInstaller
@@ -66,60 +68,67 @@ jobs:
             "--hidden-import", "selenium",
             "--hidden-import", "pandas",
             "--hidden-import", "webdriver_manager",
+            "--hidden-import", "logging",
+            "--hidden-import", "json",
+            "--hidden-import", "datetime",
             "--log-level", "DEBUG",
             "scheduler.py"
         )
         
-        pyinstaller @pyinstallerArgs
-        
-        # 检查构建结果
-        if (-not (Test-Path "dist\机票价格监控.exe")) {
-            Write-Error "可执行文件生成失败"
-            Get-ChildItem -Path "dist" -ErrorAction SilentlyContinue
+        try {
+            pyinstaller @pyinstallerArgs
+            if ($LASTEXITCODE -ne 0) {
+                throw "PyInstaller 构建失败，退出代码：$LASTEXITCODE"
+            }
+        }
+        catch {
+            Write-Error "构建过程出错：$_"
             exit 1
         }
         
-        echo "可执行文件构建完成"
+        # 验证构建结果
+        if (-not (Test-Path "dist\机票价格监控.exe")) {
+            Write-Error "可执行文件生成失败"
+            Write-Host "dist目录内容："
+            Get-ChildItem -Path "dist" -Recurse
+            exit 1
+        }
+        
+        Write-Host "可执行文件构建完成"
         
     - name: Create release package
       shell: pwsh
       run: |
-        echo "开始创建发布包..."
-        New-Item -ItemType Directory -Force -Path "release"
+        Write-Host "开始创建发布包..."
         
-        echo "检查dist目录内容："
-        Get-ChildItem -Path "dist" -Recurse
+        # 创建发布目录
+        $releaseDir = "release"
+        New-Item -ItemType Directory -Force -Path $releaseDir
         
-        echo "复制可执行文件..."
-        if (Test-Path "dist\机票价格监控.exe") {
-            Copy-Item -Path "dist\机票价格监控.exe" -Destination "release\"
-        } else {
-            Write-Error "可执行文件不存在"
-            exit 1
+        # 定义需要复制的文件
+        $filesToCopy = @{
+            "dist\机票价格监控.exe" = "机票价格监控.exe"
+            "start_monitor.bat" = "start_monitor.bat"
+            "README.md" = "README.md"
         }
         
-        echo "复制启动脚本..."
-        if (Test-Path "start_monitor.bat") {
-            Copy-Item -Path "start_monitor.bat" -Destination "release\"
-        } else {
-            Write-Error "启动脚本不存在"
-            exit 1
+        # 复制文件
+        foreach ($file in $filesToCopy.GetEnumerator()) {
+            if (Test-Path $file.Key) {
+                Copy-Item -Path $file.Key -Destination "$releaseDir\$($file.Value)"
+                Write-Host "已复制: $($file.Value)"
+            } else {
+                Write-Error "错误：$($file.Key) 文件不存在"
+                exit 1
+            }
         }
         
-        echo "复制说明文件..."
-        if (Test-Path "README.md") {
-            Copy-Item -Path "README.md" -Destination "release\"
-        } else {
-            Write-Error "说明文件不存在"
-            exit 1
-        }
+        Write-Host "发布包创建完成"
         
-        echo "发布包创建完成"
-        
-    - name: List release contents
+    - name: Verify release package
       shell: pwsh
       run: |
-        echo "发布包内容："
+        Write-Host "验证发布包内容："
         Get-ChildItem -Path "release" -Recurse
         
     - name: Upload artifact
@@ -127,4 +136,5 @@ jobs:
       with:
         name: windows-executable
         path: release/
-        if-no-files-found: error 
+        if-no-files-found: error
+        retention-days: 7 
