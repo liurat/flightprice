@@ -21,6 +21,7 @@ jobs:
         python-version: '3.9'
         
     - name: Install dependencies
+      shell: pwsh
       run: |
         echo "开始安装依赖..."
         python -m pip install --upgrade pip
@@ -29,11 +30,12 @@ jobs:
         echo "依赖安装完成"
         
     - name: List files
+      shell: pwsh
       run: |
         echo "当前目录文件列表："
-        dir
+        Get-ChildItem -Recurse
         echo "Python文件列表："
-        dir *.py
+        Get-ChildItem -Filter "*.py" -Recurse
         
     - name: Build executable
       shell: pwsh
@@ -46,36 +48,79 @@ jobs:
         echo "PyInstaller版本："
         pyinstaller --version
         echo "开始执行PyInstaller..."
-        pyinstaller --clean --noconfirm `
-          --name "机票价格监控" `
-          --add-data "config.py;." `
-          --add-data "scheduler_config.py;." `
-          --hidden-import schedule `
-          --hidden-import selenium `
-          --hidden-import pandas `
-          --hidden-import webdriver_manager `
-          --log-level DEBUG `
-          scheduler.py
+        
+        # 检查源文件是否存在
+        if (-not (Test-Path "scheduler.py")) {
+            Write-Error "scheduler.py 文件不存在"
+            exit 1
+        }
+        
+        # 执行PyInstaller
+        $pyinstallerArgs = @(
+            "--clean",
+            "--noconfirm",
+            "--name", "机票价格监控",
+            "--add-data", "config.py;.",
+            "--add-data", "scheduler_config.py;.",
+            "--hidden-import", "schedule",
+            "--hidden-import", "selenium",
+            "--hidden-import", "pandas",
+            "--hidden-import", "webdriver_manager",
+            "--log-level", "DEBUG",
+            "scheduler.py"
+        )
+        
+        pyinstaller @pyinstallerArgs
+        
+        # 检查构建结果
+        if (-not (Test-Path "dist\机票价格监控.exe")) {
+            Write-Error "可执行文件生成失败"
+            Get-ChildItem -Path "dist" -ErrorAction SilentlyContinue
+            exit 1
+        }
+        
         echo "可执行文件构建完成"
         
     - name: Create release package
       shell: pwsh
       run: |
         echo "开始创建发布包..."
-        mkdir -Force release
+        New-Item -ItemType Directory -Force -Path "release"
+        
+        echo "检查dist目录内容："
+        Get-ChildItem -Path "dist" -Recurse
+        
         echo "复制可执行文件..."
-        Copy-Item -Path "dist\机票价格监控.exe" -Destination "release\"
+        if (Test-Path "dist\机票价格监控.exe") {
+            Copy-Item -Path "dist\机票价格监控.exe" -Destination "release\"
+        } else {
+            Write-Error "可执行文件不存在"
+            exit 1
+        }
+        
         echo "复制启动脚本..."
-        Copy-Item -Path "start_monitor.bat" -Destination "release\"
+        if (Test-Path "start_monitor.bat") {
+            Copy-Item -Path "start_monitor.bat" -Destination "release\"
+        } else {
+            Write-Error "启动脚本不存在"
+            exit 1
+        }
+        
         echo "复制说明文件..."
-        Copy-Item -Path "README.md" -Destination "release\"
+        if (Test-Path "README.md") {
+            Copy-Item -Path "README.md" -Destination "release\"
+        } else {
+            Write-Error "说明文件不存在"
+            exit 1
+        }
+        
         echo "发布包创建完成"
         
     - name: List release contents
       shell: pwsh
       run: |
         echo "发布包内容："
-        Get-ChildItem -Path "release"
+        Get-ChildItem -Path "release" -Recurse
         
     - name: Upload artifact
       uses: actions/upload-artifact@v4
