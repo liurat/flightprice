@@ -36,6 +36,7 @@ jobs:
         dir *.py
         
     - name: Build executable
+      shell: pwsh
       run: |
         echo "开始构建可执行文件..."
         echo "当前工作目录："
@@ -45,34 +46,36 @@ jobs:
         echo "PyInstaller版本："
         pyinstaller --version
         echo "开始执行PyInstaller..."
-        pyinstaller --clean --noconfirm ^
-          --name "机票价格监控" ^
-          --add-data "config.py;." ^
-          --add-data "scheduler_config.py;." ^
-          --hidden-import schedule ^
-          --hidden-import selenium ^
-          --hidden-import pandas ^
-          --hidden-import webdriver_manager ^
-          --log-level DEBUG ^
+        pyinstaller --clean --noconfirm `
+          --name "机票价格监控" `
+          --add-data "config.py;." `
+          --add-data "scheduler_config.py;." `
+          --hidden-import schedule `
+          --hidden-import selenium `
+          --hidden-import pandas `
+          --hidden-import webdriver_manager `
+          --log-level DEBUG `
           scheduler.py
         echo "可执行文件构建完成"
         
     - name: Create release package
+      shell: pwsh
       run: |
         echo "开始创建发布包..."
-        mkdir release
+        mkdir -Force release
         echo "复制可执行文件..."
-        copy dist\机票价格监控.exe release\
+        Copy-Item -Path "dist\机票价格监控.exe" -Destination "release\"
         echo "复制启动脚本..."
-        copy start_monitor.bat release\
+        Copy-Item -Path "start_monitor.bat" -Destination "release\"
         echo "复制说明文件..."
-        copy README.md release\
+        Copy-Item -Path "README.md" -Destination "release\"
         echo "发布包创建完成"
         
     - name: List release contents
+      shell: pwsh
       run: |
         echo "发布包内容："
-        dir release
+        Get-ChildItem -Path "release"
         
     - name: Upload artifact
       uses: actions/upload-artifact@v4
